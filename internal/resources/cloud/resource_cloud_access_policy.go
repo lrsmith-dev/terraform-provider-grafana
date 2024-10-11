@@ -22,6 +22,19 @@ var (
 )
 
 func resourceAccessPolicy() *common.Resource {
+	cloudAccessPolicyConditionSchema := &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"allowed_subnets": {
+				Type:        schema.TypeSet,
+				Required:    true,
+				Description: "",
+				Elem: &schema.Schema{
+					Type:             schema.TypeString,
+					ValidateDiagFunc: validateCloudAccessPolicyCondition,
+				},
+			},
+		},
+	}
 	cloudAccessPolicyRealmSchema := &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"type": {
@@ -110,6 +123,11 @@ Required access policy scopes:
 				Required: true,
 				Elem:     cloudAccessPolicyRealmSchema,
 			},
+			"conditions": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     cloudAccessPolicyConditionSchema,
+			},
 
 			// Computed
 			"policy_id": {
@@ -183,7 +201,9 @@ func createCloudAccessPolicy(ctx context.Context, d *schema.ResourceData, client
 			DisplayName: &displayName,
 			Scopes:      common.ListToStringSlice(d.Get("scopes").(*schema.Set).List()),
 			Realms:      expandCloudAccessPolicyRealm(d.Get("realm").(*schema.Set).List()),
+			Conditions:  expandCloudAccessPolicyConditions(d.Get("conditions").(*schema.Set).List()),
 		})
+
 	result, _, err := req.Execute()
 	if err != nil {
 		return apiError(err)
@@ -265,6 +285,10 @@ func validateCloudAccessPolicyScope(v interface{}, path cty.Path) diag.Diagnosti
 	return nil
 }
 
+func validateCloudAccessPolicyCondition(v interface{}, path cty.Path) diag.Diagnostics {
+	return nil
+}
+
 func flattenCloudAccessPolicyRealm(realm []gcom.AuthAccessPolicyRealmsInner) []interface{} {
 	var result []interface{}
 
@@ -283,6 +307,21 @@ func flattenCloudAccessPolicyRealm(realm []gcom.AuthAccessPolicyRealmsInner) []i
 		})
 	}
 	return result
+}
+
+func expandCloudAccessPolicyConditions(condition []interface{}) *gcom.PostAccessPoliciesRequestConditions {
+
+	var result gcom.PostAccessPoliciesRequestConditions
+
+	for _, c := range condition {
+		c := c.(map[string]interface{})
+		for _, as := range c["allowed_subnets"].(*schema.Set).List() {
+			fmt.Printf("\n%s\n", as)
+			result.AllowedSubnets = append(result.AllowedSubnets, as.(string))
+		}
+	}
+
+	return &result
 }
 
 func expandCloudAccessPolicyRealm(realm []interface{}) []gcom.PostAccessPoliciesRequestRealmsInner {

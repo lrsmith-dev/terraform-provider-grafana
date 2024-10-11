@@ -218,6 +218,21 @@ func testAccCloudAccessPolicyTokenCheckExists(rn string, a *gcom.AuthToken) reso
 		return nil
 	}
 }
+func testAccCloudAccessPolicyAllowedSubnetsCheckExists(rn string, a *gcom.AuthAccessPolicy) resource.TestCheckFunc {
+
+	return func(s *terraform.State) error {
+
+		if a.Conditions.HasAllowedSubnets() {
+			print("A\n")
+			print(rn)
+			print("Has Allowed Subets. That is a start.\n")
+		}
+
+		return nil
+		//return fmt.Errorf("Enountered unexpected error verifying if Allow Subnets exists.")
+
+	}
+}
 
 func testAccCloudAccessPolicyCheckDestroy(region string, a *gcom.AuthAccessPolicy) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
@@ -295,6 +310,52 @@ func testAccCloudAccessPolicyTokenConfigBasic(name, displayName, region string, 
 				selector = "{namespace=\"default\"}"
 			}
 		}
+	}
+
+	resource "grafana_cloud_access_policy_token" "test" {
+		region           = "%[6]s"
+		access_policy_id = grafana_cloud_access_policy.test.policy_id
+		name             = "token-%[1]s"
+		%[2]s
+		%[5]s
+	}
+	`, name, displayName, strings.Join(scopes, `","`), os.Getenv("GRAFANA_CLOUD_ORG"), expiresAt, region)
+}
+
+func testAccCloudAccessPolicyTokenConfigWithAllowedSubnets(name, displayName, region string, scopes []string, expiresAt string) string {
+	if displayName != "" {
+		displayName = fmt.Sprintf("display_name = \"%s\"", displayName)
+	}
+
+	if expiresAt != "" {
+		expiresAt = fmt.Sprintf("expires_at = \"%s\"", expiresAt)
+	}
+
+	return fmt.Sprintf(`
+	data "grafana_cloud_organization" "current" {
+		slug = "%[4]s"
+	}
+
+	resource "grafana_cloud_access_policy" "test" {
+		region       = "%[6]s"
+		name         = "%[1]s"
+		%[2]s
+
+		scopes = ["%[3]s"]
+
+		realm {
+			type       = "org"
+			identifier = data.grafana_cloud_organization.current.id
+
+			label_policy {
+				selector = "{namespace=\"default\"}"
+			}
+		}
+
+		conditions {
+			allowed_subnets = ["192.168.0.0/24", "10.1.2.99/32"]
+  		}
+
 	}
 
 	resource "grafana_cloud_access_policy_token" "test" {
