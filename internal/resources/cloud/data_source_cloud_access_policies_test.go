@@ -14,6 +14,47 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
+func TestDataSourceAccessPolicy_WithAllowedSubnets(t *testing.T) {
+	testutils.CheckCloudAPITestsEnabled(t)
+
+	var policy gcom.AuthAccessPolicy
+
+	expiresAt := time.Now().Add(time.Hour * 24).UTC().Format(time.RFC3339)
+	randomName := acctest.RandStringFromCharSet(6, acctest.CharSetAlpha)
+	scopes := []string{
+		"accesspolicies:read",
+	}
+
+	accessPolicyConfig := testAccCloudAccessPolicyTokenConfigWithAllowedSubnets(randomName, randomName+"display", "us", scopes, expiresAt)
+	print(accessPolicyConfig)
+
+	setItemMatcher := func(s *terraform.State) error {
+		return resource.TestCheckTypeSetElemNestedAttrs("data.grafana_cloud_access_policies.test", "access_policies.*", map[string]string{
+			"id":           *policy.Id,
+			"region":       "us",
+			"name":         randomName,
+			"display_name": randomName + "display",
+			"status":       *policy.Status,
+		})(s)
+
+	}
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: testutils.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCloudAccessPolicyCheckDestroy("us", &policy),
+		Steps: []resource.TestStep{
+			{
+				Config: accessPolicyConfig + testAccDataSourceAccessPoliciesConfigBasic(nil, nil),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCloudAccessPolicyCheckExists("grafana_cloud_access_policy.test", &policy),
+					testAccCloudAccessPolicyAllowedSubnetsCheckExists("grafana_cloud_access_policy.test", &policy),
+					setItemMatcher,
+				),
+			},
+		},
+	})
+}
+
 func TestDataSourceAccessPolicy_Basic(t *testing.T) {
 	testutils.CheckCloudAPITestsEnabled(t)
 
